@@ -1,0 +1,1 @@
+﻿清除jqGrid数据  $("#gridTable").jqGrid("clearGridData");
