@@ -1,0 +1,560 @@
+导出：
+    <script>
+    $(document).ready(function () {
+        initialPage();
+        GetGrid();
+    });
+    //重设(表格)宽高
+    function initialPage() {
+        //resize重设(表格、树形)宽高
+        $(window).resize(function (e) {
+            window.setTimeout(function () {
+                $('#gridTable').setGridWidth(($('.gridPanel').width()));
+                $("#gridTable").setGridHeight($(window).height() - 108.5);
+            }, 200);
+            e.stopPropagation();
+        });
+    }
+    //加载表格
+    function GetGrid() {
+        var selectedRowIndex = 0;
+        var $gridTable = $('#gridTable');
+        $gridTable.jqGrid({
+            url: "/NBManage/NBEquipmentDebug/GetRecord",
+            datatype: "json",
+            height: $(window).height() - 108.5,
+            autowidth: true,
+            colModel: [
+                        { label: '小区', name: 'ID1', width: -1 },
+                        { label: '单元', name: 'ID2', width: -1 },
+                        { label: '楼宇', name: 'ID3', width: -1 },
+                        { label: '户号', name: 'ID4', width: -1 },
+                        { label: 'ID', name: 'ID',hidden:true },
+                        { label: "IMEI", name: "IMEI", width: 200, align: "left", sortable: false },
+                        { label: "SIM", name: "SIM", width: 200, align: "left", sortable: false },
+                        { label: "地址", name: "MeterAddr", width: 200, align: "left", sortable: false },
+                        { label: "DeviceID", name: "DeviceID", width: 300, align: "center", sortable: false },
+                        { label: "注册状态", name: "CommunicationState", width: 100, align: "center", sortable: false, formatter: enteredKbFmatter, cellattr: addCellAttr },
+                        //{ label: "注册时间", name: "RegisterDate", width: 100, align: "left", sortable: false, formatter: dataFmatter },
+                        {
+                            label: "注册时间", name: "RegisterDate", width: 100, align: "left", sortable: false,
+                            formatter: function (cellvalue, options, rowObject) {
+                                return formatDate(cellvalue, 'yyyy-MM-dd hh:mm:ss')
+                            }
+                        },
+            ],
+            treeGrid: true,
+            treeGridModel: "nested",
+            ExpandColumn: "EnCode",
+            viewrecords: true,
+            rowNum: 30,
+            rowList: [30, 50, 100],
+            rownumbers: true,
+            pager: "#gridPager",
+            gridComplete: function () {
+                $("#" + this.id).setSelection(selectedRowIndex, false);
+            }
+        });
+        //$gridTable.authorizeColModel();
+        //查询条件设置
+    }
+    function enteredKbFmatter(cellvalue, options, rowObject) {
+        if (cellvalue == 1) {
+            return "已注册";
+        } else {
+            return "未注册";
+        }
+    }
+    function addCellAttr(rowId, val, rawObject, cm, rdata) {
+        if (val == "已注册") {
+            return "style='color:green'";
+        }
+        else {
+            return "style='color:red'";
+        }
+    }
+    function dataFmatter(cellvalue, options, rowObject) {
+        return formatDate(cellvalue, 'yyyy-MM-dd hh:mm:ss');
+    }
+    function btn_Search() {
+        var imei = $("#txt_imei").val();
+        var thisDate = $('#ThisDate').val();
+        var lastDate = $('#LastDate').val();
+
+        $("#gridTable").jqGrid('setGridParam', {
+            postData: {
+                imei: imei,
+                thisDate: thisDate,
+                lastDate: lastDate
+            }
+        }).trigger('reloadGrid');
+    }
+    //导出
+    function btn_export() {
+        var datavalue = $("#gridTable").jqGrid('getRowData');   //获取全部数据
+        debugger;
+        //$.ajax({
+        //    url: "/NBManage/NBEquipmentDebug/ExportExcel",
+        //    data: { datavalue: JSON.stringify(datavalue) },
+        //    type: "post",
+        //    dataType: "json",
+        //    success: function (data) {
+        //        debugger;
+        //    },
+        //});       
+        dialogOpen({
+            id: "ExcelIExportDialog",
+            title: '导出',
+            url: '/Utility/ExcelExportForm?gridId=gridTable&filename=联网测试',
+            width: "500px",
+            height: "380px",
+            callBack: function (iframeId) {
+                top.frames[iframeId].AcceptClick();
+            }, btn: ['导出Excel', '关闭']
+        });
+    }
+</script>
+
+
+<script>
+    var gridId = request('gridId');
+    var filename = request('filename');
+    $(function () {
+        debugger;
+        var columnModel = $.currentIframe().$("#" + gridId).jqGrid('getGridParam', 'colModel');
+        $.each(columnModel, function (i) {
+            var label = columnModel[i].label;
+            var name = columnModel[i].name;
+            var hidden = columnModel[i].hidden;
+            if (!!label && hidden == false) {
+                $(".sys_spec_text").append("<li data-value='" + name + "' title='" + label + "'><a>" + label + "</a><i></i></li>");
+            }
+        });
+        $(".sys_spec_text li").addClass("active");
+        $(".sys_spec_text li").click(function () {
+            if (!!$(this).hasClass("active")) {
+                $(this).removeClass("active");
+            } else {
+                $(this).addClass("active").siblings("li");
+            }
+        });
+    });
+    //确定导出
+    function AcceptClick() {
+        debugger;
+        var exportField = [];
+        $('.sys_spec_text ').find('li.active').each(function () {
+            var value = $(this).attr('data-value');
+            exportField.push(value);
+        });
+        var columnJson = $.currentIframe().$("#" + gridId).jqGrid('getGridParam', 'colModel');
+        var rowJson = $.currentIframe().$("#" + gridId).jqGrid('getRowData');
+        $('#executeexcel').remove();
+        var $form = $("<form id='executeexcel' method='post' action='" + top.contentPath + "/Utility/ExecuteExportExcel' style='display:none;'>");
+        var $input = $("<input type='hidden' name='columnJson' value='" + JSON.stringify(columnJson) + "'><input type='hidden' name='rowJson' value='" + JSON.stringify(rowJson) + "'><input type='hidden' name='exportField' value='" + String(exportField) + "'><input type='hidden' name='filename' value='" + escape(filename) + "'>");
+        $("body").append($form);
+        $form.append($input).submit();
+    }
+</script>
+
+
+
+
+
+
+public void ExecuteExportExcel(string columnJson, string rowJson, string exportField, string filename)
+        {
+            //设置导出格式
+            ExcelConfig excelconfig = new ExcelConfig();
+            if (Server.UrlDecode(filename)=="联网测试")
+            {
+                
+            }
+            else
+            {
+                excelconfig.Title = Server.UrlDecode(filename);
+            }          
+            excelconfig.TitleFont = "微软雅黑";
+            excelconfig.TitlePoint = 15;
+            excelconfig.FileName = Server.UrlDecode(filename) + ".xls";
+            excelconfig.IsAllSizeColumn = true;
+            excelconfig.ColumnEntity = new List<ColumnEntity>();
+            //表头
+            List<GridColumnModel> columnData = columnJson.ToList<GridColumnModel>();
+            //行数据
+            DataTable rowData = rowJson.ToTable();
+            //写入Excel表头
+            string[] fieldInfo = exportField.Split(',');
+            foreach (string item in fieldInfo)
+            {
+                var list = columnData.FindAll(t => t.name == item);
+                foreach (GridColumnModel gridcolumnmodel in list)
+                {
+                    if (gridcolumnmodel.hidden.ToLower() == "false" && gridcolumnmodel.label != null)
+                    {
+                        string align = gridcolumnmodel.align;
+                        excelconfig.ColumnEntity.Add(new ColumnEntity()
+                        {
+                            Column = gridcolumnmodel.name,
+                            ExcelColumn = gridcolumnmodel.label,
+                            //Width = gridcolumnmodel.width,
+                            Alignment = gridcolumnmodel.align,
+                        });
+                    }
+                }
+            }
+            ExcelHelper.ExcelDownload(rowData, excelconfig);
+        }
+
+
+
+
+
+        public static void ExcelDownload(DataTable dtSource, ExcelConfig excelConfig)
+        {
+            HttpContext curContext = HttpContext.Current;
+            // 设置编码和附件格式
+            curContext.Response.ContentType = "application/ms-excel";
+            curContext.Response.ContentEncoding = Encoding.UTF8;
+            curContext.Response.Charset = "";
+            curContext.Response.AppendHeader("Content-Disposition",
+                "attachment;filename=" + HttpUtility.UrlEncode(excelConfig.FileName, Encoding.UTF8));
+            //调用导出具体方法Export()
+            curContext.Response.BinaryWrite(ExportMemoryStream(dtSource, excelConfig).GetBuffer());
+            curContext.Response.End();
+        }
+
+
+导入：
+@{
+    ViewBag.Title = "批量注册";
+    Layout = "~/Views/Shared/_Index.cshtml";
+}
+<style>
+    .button {
+        width: auto;
+        padding: 9px 15px;
+        background: #617798;
+        border: 0;
+        font-size: 14px;
+        color: #FFFFFF;
+    }
+</style>
+<script>
+    $(document).ready(function () {
+        initialPage();
+        //GetGrid();
+        GetGrid110();
+    });
+    //重设(表格)宽高
+    function initialPage() {
+        //resize重设(表格、树形)宽高
+        $(window).resize(function (e) {
+            window.setTimeout(function () {
+                $('#gridTable').setGridWidth(($('.gridPanel').width()));
+                $("#gridTable").setGridHeight($(window).height() - 108.5);
+            }, 200);
+            e.stopPropagation();
+        });
+    }
+
+    //加载表格 
+    function GetGrid110(tabledata) {
+        jQuery("#gridTable").jqGrid(
+            {
+                datatype: "local",
+                height: $(window).height() - 108.5,
+                colModel: [
+                        { label: 'ID', name: 'ID', hidden: true },
+                        { label: "IMEI", name: "IMEI", width: 100, align: "left", sortable: false },
+                        { label: "SIM", name: "SIM", width: 100, align: "left", sortable: false },
+                        { label: "地址", name: "METERADDR", width: 100, align: "left", sortable: false },
+                        //{ label: "DeviceID", name: "DeviceID", width: 300, align: "center", sortable: false },
+                        //{ label: "注册状态", name: "CommunicationState", width: 100, align: "center", sortable: false, formatter: enteredKbFmatter },
+                        //{ label: "注册时间", name: "RegisterDate", width: 100, align: "left", sortable: false },
+                ]
+            });
+        if (tabledata != null) {
+            var mydata = JSON.parse(tabledata);
+            for (var i = 0; i <= mydata.length; i++) {
+                jQuery("#gridTable").jqGrid('addRowData', i + 1, mydata[i]);
+            }
+        }
+    }
+
+    function GetGrid(tabledata) {
+        debugger;
+        var $gridTable = $('#gridTable');
+        $gridTable.jqGrid({
+            //url: "/NBManage/NBEquipmentDebug/GetRecordJson",
+            //datatype: "json",
+            datatype: "local",
+            height: $(window).height() - 108.5,
+            autowidth: true,
+            colModel: [
+                { label: 'ID', name: 'ID', hidden: true },
+                { label: "IMEI", name: "IMEI", width: 100, align: "left", sortable: false },
+                { label: "SIM", name: "SIM", width: 100, align: "left", sortable: false },
+                { label: "地址", name: "METERADDR", width: 100, align: "left", sortable: false },
+                //{ label: "DeviceID", name: "DeviceID", width: 300, align: "center", sortable: false },
+                //{ label: "注册状态", name: "CommunicationState", width: 100, align: "center", sortable: false, formatter: enteredKbFmatter },
+                //{ label: "注册时间", name: "RegisterDate", width: 100, align: "left", sortable: false },
+            ],
+
+        });
+        debugger;
+        var array1 = JSON.parse(tabledata);
+        for (var i = 0; i <= array1.length; i++) {
+            debugger;
+            jQuery("#gridTable").jqGrid('addRowData', i + 1, array1[i]);
+        }
+    }
+
+
+    function enteredKbFmatter(cellvalue, options, rowObject) {
+        if (cellvalue == 1) {
+            return "已注册";
+        } else {
+            return "未注册";
+        }
+    }
+
+    function btn_confirm() {
+        $("#gridTable").jqGrid("clearGridData");
+        var formData = new FormData($('#uploadForm')[0]);
+        $.ajax({
+            type: 'post',
+            url: '/NBManage/NBEquipmentDebug/ImportExcel',
+            data: formData,
+            cache: false,
+            processData: false,
+            contentType: false,
+            success: function (data) {
+                var tabledata = data.split("#")[1];
+                GetGrid110(tabledata);
+                //GetGrid(tabledata);
+                var backdata = data.split("#")[0];
+                //$('#gridTable').trigger('reloadGrid');
+                //打开一个窗口，显示成功和不成功的数据
+                //dialogMsg(backdata, 0);
+                //alert(backdata);
+                dialogOpen({
+                    id: "buttonForm",
+                    title: '注册详情',
+                    url: '/NBManage/NBEquipmentDebug/DetailForm?datavalue=' + escape(backdata),
+                    width: "450px",
+                    height: "300px",
+                    callBack: function (iframeId) {
+                        top.frames[iframeId].AcceptClick();
+                    }
+                });
+                //GetGrid110(tabledata);
+                //GetGrid(tabledata);
+            },
+        })
+        //    .success(function (data) {
+        //    var backdata = data;
+        //    $('#gridTable').trigger('reloadGrid');
+        //    //打开一个窗口，显示成功和不成功的数据
+        //    //dialogMsg(backdata, 0);
+        //    dialogOpen({
+        //        id: "buttonForm",
+        //        title: '注册详情',
+        //        url: '/NBManage/NBEquipmentDebug/DetailForm?datavalue=' + escape(backdata),
+        //        width: "450px",
+        //        height: "300px",
+        //        callBack: function (iframeId) {
+        //            top.frames[iframeId].AcceptClick();
+        //        }
+        //    });
+        //})
+        //    .error(function () {
+        //    alert("上传失败12110");
+        //});
+    }
+</script>
+
+<div style="background: #fff">
+    <form id="uploadForm" enctype="multipart/form-data" style="display: inline">
+        文件 :
+        <input id="file" type="file" name="file" style="display: inline" />
+    </form>
+    <button id="upload" onclick="btn_confirm()" class="button" style="display: inline">上传文件</button>
+    <br />
+</div>
+
+<div class="gridPanel">
+    <table id="gridTable"></table>
+    <div id="gridPager"></div>
+</div>
+
+ 
+
+        /// <summary>
+        /// 导入excle
+        /// </summary>
+        /// <returns></returns>
+        public ActionResult ImportExcel()
+        {
+            //1.接收客户端传过来的数据
+            HttpPostedFileBase file = Request.Files["file"];
+            if (file == null || file.ContentLength <= 0)
+            {
+                return Json("请选择要上传的Excel文件", JsonRequestBehavior.AllowGet);
+            }
+            //获取一个streamfile对象，该对象指向一个上传文件，
+            Stream streamfile = file.InputStream;
+            string FinName = Path.GetExtension(file.FileName);
+            if (FinName != ".xls" && FinName != ".xlsx")
+            {
+                return Json("只能上传Excel文档", JsonRequestBehavior.AllowGet);
+            }
+            else
+            {
+                try
+                {
+                    if (FinName == ".xls")
+                    {
+                        //创建一个webbook，对应一个Excel文件(用于xls文件导入类)
+                        HSSFWorkbook hssfworkbook = new HSSFWorkbook(streamfile);
+                        this.ImExport(hssfworkbook);
+                    }
+                    else
+                    {
+                        XSSFWorkbook xssfworkbook = new XSSFWorkbook(streamfile);
+                        this.ImExport(xssfworkbook);
+                    }
+                    string jsonDic = JsonConvert.SerializeObject(dic);
+                    string jsonTable = JsonConvert.SerializeObject(dtexcel);
+                    string json1 = jsonDic + "#" + jsonTable;
+                    //return Json(jsonDic+'#'+jsonTable, JsonRequestBehavior.AllowGet);
+                    return Content(json1);
+                }
+                catch (Exception ex)
+                {
+                    return Json("导入失败 ！" + ex.Message, JsonRequestBehavior.AllowGet);
+                }
+            }
+
+        }
+
+
+
+#region 两种不同版本的操作excel
+        ///<summary>
+        /// 扩展名*.xls
+        /// </summary>
+        public void ImExport(HSSFWorkbook hssfworkbook)
+        {
+            // 在webbook中添加一个sheet,对应Excel文件中的sheet,取出第一个工作表，索引是0 
+            NPOI.SS.UserModel.ISheet sheet = hssfworkbook.GetSheetAt(0);
+            System.Collections.IEnumerator rows = sheet.GetRowEnumerator();
+            for (int j = 0; j < (sheet.GetRow(0).LastCellNum); j++)
+            {
+                dtexcel.Columns.Add(sheet.GetRow(0).Cells[j].ToString());
+            }
+            while (rows.MoveNext())
+            {
+                HSSFRow row = (HSSFRow)rows.Current;
+                DataRow dr = dtexcel.NewRow();
+                for (int i = 0; i < row.LastCellNum; i++)
+                {
+                    NPOI.SS.UserModel.ICell cell = row.GetCell(i);
+                    if (cell == null)
+                    {
+                        dr[i] = null;
+                    }
+                    else
+                    {
+                        dr[i] = cell.ToString();
+                    }
+                }
+                dtexcel.Rows.Add(dr);
+            }
+            dtexcel.Rows.RemoveAt(0);
+            if (dtexcel != null && dtexcel.Rows.Count != 0)
+            {
+                for (int i = 0; i < dtexcel.Rows.Count; i++)
+                {
+                    string IMEI = dtexcel.Rows[i]["IMEI"].ToString();
+                    string SIM = dtexcel.Rows[i]["SIM"].ToString();
+                    string MeterAddr = dtexcel.Rows[i]["MeterAddr"].ToString();
+                    string resultCode = bll.SendCommand(IMEI, SIM, MeterAddr);//服务器返回消息
+                    JObject jObj1 = JsonConvert.DeserializeObject<JObject>(resultCode);
+                    if (null != jObj1)
+                    {
+                        if (null != jObj1["error_code"])
+                        {
+                            dic.Add("设备码" + IMEI, "失败" + jObj1["error_code"].ToString());
+                        }
+                        else if (null != jObj1["deviceId"])
+                        {
+                            dic.Add("设备码" + IMEI, "成功");
+                        }
+                    }
+                    else  //(null==jObj1)
+                    {
+                        dic.Add("设备码" + IMEI, "更新成功");
+                    }
+                }
+            }
+        }
+
+        ///<summary>
+        /// 扩展名*.xlsx
+        /// </summary>
+        public void ImExport(XSSFWorkbook xssfworkbook)
+        {
+            NPOI.SS.UserModel.ISheet sheet = xssfworkbook.GetSheetAt(0);
+            System.Collections.IEnumerator rows = sheet.GetRowEnumerator();
+            for (int j = 0; j < (sheet.GetRow(0).LastCellNum); j++)
+            {
+                dtexcel.Columns.Add(sheet.GetRow(0).Cells[j].ToString());
+            }
+            while (rows.MoveNext())
+            {
+                XSSFRow row = (XSSFRow)rows.Current;
+                DataRow dr = dtexcel.NewRow();
+                for (int i = 0; i < row.LastCellNum; i++)
+                {
+                    NPOI.SS.UserModel.ICell cell = row.GetCell(i);
+                    if (cell == null)
+                    {
+                        dr[i] = null;
+                    }
+                    else
+                    {
+                        dr[i] = cell.ToString();
+                    }
+                }
+                dtexcel.Rows.Add(dr);
+            }
+            dtexcel.Rows.RemoveAt(0);
+            if (dtexcel != null && dtexcel.Rows.Count != 0)
+            {
+                for (int i = 0; i < dtexcel.Rows.Count; i++)
+                {
+                    string IMEI = dtexcel.Rows[i]["IMEI"].ToString();
+                    string SIM = dtexcel.Rows[i]["SIM"].ToString();
+                    string MeterAddr = dtexcel.Rows[i]["MeterAddr"].ToString();
+                    string resultCode = bll.SendCommand(IMEI, SIM, MeterAddr);//服务器返回消息
+                    JObject jObj1 = JsonConvert.DeserializeObject<JObject>(resultCode);
+                    if (null != jObj1)
+                    {
+                        if (null != jObj1["error_code"])
+                        {
+                            dic.Add("设备码" + IMEI, "失败" + jObj1["error_code"].ToString());
+                        }
+                        else if (null != jObj1["deviceId"])
+                        {
+                            dic.Add("设备码" + IMEI, "成功");
+                        }
+                    }
+                    else  //(null==jObj1)
+                    {
+                        dic.Add("设备码" + IMEI, "更新成功");
+                    }
+                }
+            }
+        }
+        #endregion

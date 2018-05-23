@@ -1,0 +1,1 @@
+将数据转换为json字符串： JSON.stringify(datavalue)
